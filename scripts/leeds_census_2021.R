@@ -111,7 +111,7 @@ any_other_ethnicity <- nomis_get_data(id = "NM_2041_1", time = "latest", geograp
 
 ## Merge all data
 
-oa_lsoa_msoa_lookup_Dec_2021 <- read.csv("geography_lookup_Dec_2021.csv")
+oa_lsoa_msoa_lookup_Dec_2021 <- read.csv("../raw_data/geography_lookup_Dec_2021.csv")
 
 oa_lsoa_msoa_lookup_Dec_2021 <- oa_lsoa_msoa_lookup_Dec_2021 %>%
                                 rename(oa21cd = OA21CD)
