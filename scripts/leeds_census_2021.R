@@ -111,7 +111,7 @@ any_other_ethnicity <- nomis_get_data(id = "NM_2041_1", time = "latest", geograp
 
 ## Merge all data
 
-oa_lsoa_msoa_lookup_Dec_2021 <- read.csv("../raw_data/geography_lookup_Dec_2021.csv")
+oa_lsoa_msoa_lookup_Dec_2021 <- read.csv("raw_data/geography_lookup_Dec_2021.csv")
 
 oa_lsoa_msoa_lookup_Dec_2021 <- oa_lsoa_msoa_lookup_Dec_2021 %>%
                                 rename(oa21cd = OA21CD)
@@ -130,8 +130,8 @@ dataframes <- list(
 
 oa21cd_data <- reduce(dataframes, left_join, by = "oa21cd")
 
-leeds_eligbility_data <- oa21cd_data %>%
+leeds_census_data_2021_oa <- oa21cd_data %>%
   filter(LAD22CD == "E08000035")
 
-leeds_eligbility_data %>%
-  write_csv("../processed_data/census_data_2021_oa.csv")
+leeds_census_data_2021_oa %>%
+  write_csv("processed_data/leeds_census_data_2021_oa.csv")
