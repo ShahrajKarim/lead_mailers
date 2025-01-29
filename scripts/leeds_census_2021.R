@@ -133,5 +133,5 @@ oa21cd_data <- reduce(dataframes, left_join, by = "oa21cd")
 leeds_eligbility_data <- oa21cd_data %>%
   filter(LAD22CD == "E08000035")
 
-census_data_2011_msoa %>%
+leeds_eligbility_data %>%
   write_csv("../processed_data/census_data_2021_oa.csv")
