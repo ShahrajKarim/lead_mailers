@@ -6,6 +6,7 @@ library(purrr)
 library(readr)  
 
 
+### Child count in age group of interest
 child_count_0to4_years <- nomis_get_data(id = "NM_2221_1", C_SEX = 0, geography = "TYPE150", C2021_AGE_24 = 1, C2021_AGE_24 = 2,
                          select = c("GEOGRAPHY_CODE", "OBS_VALUE")) %>%
   rename("under_yo4_count" = "OBS_VALUE", "oa21cd"= "GEOGRAPHY_CODE")
