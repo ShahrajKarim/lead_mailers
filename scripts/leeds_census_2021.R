@@ -8,6 +8,8 @@ library(readr)
 library(googledrive)
 
 # Define function to get census data
+# "geography" is related specifically to the code used by nomisr e.g. "TYPE150"
+# "geo_col" is used to rename the geography column to know the geographic unit associated with the "geography" variable e.g. oa21cd
 get_census_data <- function(geography, geo_col) {
   
   # Country of Birth Data
@@ -78,10 +80,6 @@ dep_child_age_data <- dep_child_age_data %>%
     dep_child_category = 3          # Rename third column
   )
 
-lookup_data <- read.csv("raw_data/geography_lookup_Dec_2021.csv") %>%
-  rename_with(tolower) %>%  # Convert column names to lowercase
-  select(ends_with("cd"))   # Keep only columns ending with "cd"
-
 dep_child_age_data <- dep_child_age_data %>%
   left_join(lookup_data, by = "oa21cd")
 
@@ -92,7 +90,7 @@ dep_child_age_data <- dep_child_age_data %>%
 # Define the geographic levels to loop over
 geo_levels <- c("oa21cd", "lsoa21cd", "msoa21cd")
 
-# Loop over each geography level and store results in a list
+# Create aggregate statistics for children with dependent children for each geographic unit
 results <- lapply(geo_levels, function(geo) {
   if (geo %in% colnames(dep_child_age_data)) {  # Check if the column exists
     dep_child_age_data %>%
