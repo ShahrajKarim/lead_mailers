@@ -98,10 +98,16 @@ results <- lapply(geo_levels, function(geo) {
       summarise(
         total_number_of_households = sum(Observation, na.rm = TRUE),
         eligible = sum(Observation[dep_child_category %in% c(1, 2)], na.rm = TRUE),
+        household_w_dep_kid_0_4_count = sum(Observation[dep_child_category == 1], na.rm = TRUE),
+        household_w_dep_kid_5_9_count = sum(Observation[dep_child_category == 2], na.rm = TRUE),
         share_of_eligible = 100 * eligible / total_number_of_households,
+        household_w_dep_kid_0_4_prop = 100 * household_w_dep_kid_0_4_count / total_number_of_households,
+        household_w_dep_kid_5_9_prop = 100 * household_w_dep_kid_5_9_count / total_number_of_households,
         .groups = "drop"  # Ensure ungrouping after summarising
       ) %>%
-      select(all_of(geo), total_number_of_households, eligible, share_of_eligible)  # Keep only required columns
+      select(all_of(geo), total_number_of_households, household_w_dep_kid_0_4_count, 
+             household_w_dep_kid_5_9_count, household_w_dep_kid_0_4_prop, 
+             household_w_dep_kid_5_9_prop, eligible, share_of_eligible)
   } else {
     message(paste("Skipping:", geo, "not found in dataset"))
     return(NULL)  # Return NULL if the column does not exist
