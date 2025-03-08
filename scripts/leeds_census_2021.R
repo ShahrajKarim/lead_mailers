@@ -1,138 +1,136 @@
-## This script calls in census data at the OA level for Leeds
+## This script calls in census data at the OA, LSOA and MSOA level for Leeds
+## Currently this calls in data for country of birth, ethnicity and number of households with youngest dependent child aged between 0 and 9.
 
 library(dplyr)
 library(nomisr)
 library(purrr)
-library(readr)  
+library(readr)
+library(googledrive)
 
+# Define function to get census data
+# "geography" is related specifically to the code used by nomisr e.g. "TYPE150"
+# "geo_col" is used to rename the geography column to know the geographic unit associated with the "geography" variable e.g. oa21cd
+get_census_data <- function(geography, geo_col) {
+  
+  # Country of Birth Data
+  COB_values <- c(1, 1002, 6, 7, 8, 9, 10, 11)
+  COB_names <- c("uk_COB", "europe_eu_countries_COB", "europe_non_eu_countries_COB", 
+                 "africa_COB", "asia_middle_east_COB", "americas_carribean_COB", 
+                 "antarctica_oceana_COB", "british_overseas_COB")
+  
+  COB_data <- map2(COB_values, COB_names, ~ nomis_get_data(
+    id = "NM_2024_1", time = "latest", geography = geography, C2021_COB_12 = .x, measures = 20100,
+    select = c("GEOGRAPHY_CODE", "OBS_VALUE")
+  ) %>%
+    rename(!!sym(.y) := OBS_VALUE, !!geo_col := GEOGRAPHY_CODE))
+  
+  # Ethnicity Data
+  ethnicity_values <- c(12, 13, 11, 12, 14, 16, 15, 17, 1, 2, 3, 4, 5, 18, 19)
+  ethnicity_names <- c("bangladesh_ethnicity", "chinese_ethnicity", "indian_ethnicity",
+                       "pakistani_ethnicity", "asian_other_ethnicity", "african_ethnicity",
+                       "caribbean_ethnicity", "afro_caribbean_other_ethnicity",
+                       "white_english_ethnicity", "white_irish_ethnicity",
+                       "white_gypsy_irish_traveller_ethnicity", "white_roma_ethnicity",
+                       "white_other_ethnicity", "arab_ethnicity", "any_other_ethnicity")
+  
+  ethnicity_data <- map2(ethnicity_values, ethnicity_names, ~ nomis_get_data(
+    id = "NM_2041_1", time = "latest", geography = geography, measures = 20100, C2021_ETH_20 = .x,
+    select = c("GEOGRAPHY_CODE", "OBS_VALUE")
+  ) %>%
+    rename(!!sym(.y) := OBS_VALUE, !!geo_col := GEOGRAPHY_CODE))
+  
+  # Load lookup file
+  lookup_data <- read.csv("raw_data/geography_lookup_Dec_2021.csv") %>%
+    rename_with(tolower) %>%  # Convert column names to lowercase
+    select(ends_with("cd"))   # Keep only columns ending with "cd"
+  
+  # Merge all datasets
+  dataframes <- c(list(lookup_data), COB_data, ethnicity_data)
+  merged_data <- reduce(dataframes, left_join, by = geo_col)
+  
+  # Filter for Leeds LAD22CD
+  leeds_data <- merged_data %>%
+    filter(lad22cd == "E08000035") %>%
+    distinct(!!sym(geo_col), .keep_all = TRUE) %>%
+    select(-matches("NMW|ObjectId"))
+  
+  return(leeds_data)
+}
 
-### Child count in age group of interest
-child_count_0to4_years <- nomis_get_data(id = "NM_2221_1", C_SEX = 0, geography = "TYPE150", C2021_AGE_24 = 1, C2021_AGE_24 = 2,
-                         select = c("GEOGRAPHY_CODE", "OBS_VALUE")) %>%
-  rename("under_yo4_count" = "OBS_VALUE", "oa21cd"= "GEOGRAPHY_CODE")
+# Call in data for OA level
+leeds_census_data_2021_oa <- get_census_data("TYPE150", "oa21cd")
 
-1
+# Call in data for LSOA level
+leeds_census_data_2021_lsoa <- get_census_data("TYPE151", "lsoa21cd")
 
-## Country of Birth Data
+# Call in data for MSOA level
+leeds_census_data_2021_msoa <- get_census_data("TYPE152", "msoa21cd")
 
-uk_COB <- nomis_get_data(id = "NM_2024_1", time = "latest", geography = "TYPE150", C2021_COB_12 = 1, measures = 20100,
-                                 select = c("GEOGRAPHY_CODE", "OBS_VALUE")) %>%
-                                 rename("uk_COB" = "OBS_VALUE", "oa21cd"= "GEOGRAPHY_CODE")
+# Use ONS data on eligible households based on age of child - downloaded on March 7th 2025
+# The ONS groups dependent children in the following age bands:[0,4], [5,9], [10,15], [16,18]
+# In this script eligible children are defined to be in the age bands [0,9]
 
-europe_eu_countries_COB <- nomis_get_data(id = "NM_2024_1", time = "latest", geography = "TYPE150", C2021_COB_12 = 1002, measures = 20100,
-                                 select = c("GEOGRAPHY_CODE", "OBS_VALUE")) %>%
-                                 rename("europe_eu_countries_COB" = "OBS_VALUE", "oa21cd" = "GEOGRAPHY_CODE")
+dep_child_age_data <- drive_get("Lead_Map_Project/UK/predictors/leeds_data/household_dependent_child_age_ons.csv") |>
+  drive_read_string() |>
+  read_csv()
 
-europe_non_eu_countries_COB <- nomis_get_data(id = "NM_2024_1", time = "latest", geography = "TYPE150", C2021_COB_12 = 6, measures = 20100,
-                                 select = c("GEOGRAPHY_CODE", "OBS_VALUE")) %>%
-                                 rename("europe_non_eu_countries_COB" = "OBS_VALUE", "oa21cd" = "GEOGRAPHY_CODE")
+dep_child_age_data <- dep_child_age_data %>%
+  rename(
+    oa21cd = 1,                  # Rename first column
+    dep_child_category = 3          # Rename third column
+  )
 
-africa_COB <- nomis_get_data(id = "NM_2024_1", time = "latest", geography = "TYPE150", C2021_COB_12 = 7, measures = 20100,
-                                 select = c("GEOGRAPHY_CODE", "OBS_VALUE")) %>%
-                                 rename("africa_COB" = "OBS_VALUE", "oa21cd" = "GEOGRAPHY_CODE")
+dep_child_age_data <- dep_child_age_data %>%
+  left_join(lookup_data, by = "oa21cd")
 
-asia_middle_east_COB <- nomis_get_data(id = "NM_2024_1", time = "latest", geography = "TYPE150", C2021_COB_12 = 8, measures = 20100,
-                                 select = c("GEOGRAPHY_CODE", "OBS_VALUE")) %>%
-                                 rename("asia_middle_east_COB" = "OBS_VALUE", "oa21cd" = "GEOGRAPHY_CODE")
+# Select Leeds' LAD
+dep_child_age_data <- dep_child_age_data %>%
+  filter(lad22cd == "E08000035")
 
-americas_carribean_COB <- nomis_get_data(id = "NM_2024_1", time = "latest", geography = "TYPE150", C2021_COB_12 = 9, measures = 20100,
-                                 select = c("GEOGRAPHY_CODE", "OBS_VALUE")) %>%
-                                 rename("americas_carribean_COB" = "OBS_VALUE", "oa21cd" = "GEOGRAPHY_CODE")
+# Define the geographic levels to loop over
+geo_levels <- c("oa21cd", "lsoa21cd", "msoa21cd")
 
-antarctica_oceana_COB <- nomis_get_data(id = "NM_2024_1", time = "latest", geography = "TYPE150", C2021_COB_12 = 10, measures = 20100,
-                                 select = c("GEOGRAPHY_CODE", "OBS_VALUE")) %>%
-                                 rename("antarctica_oceana_COB" = "OBS_VALUE", "oa21cd" = "GEOGRAPHY_CODE")
+# Create aggregate statistics for children with dependent children for each geographic unit
+results <- lapply(geo_levels, function(geo) {
+  if (geo %in% colnames(dep_child_age_data)) {  # Check if the column exists
+    dep_child_age_data %>%
+      group_by(across(all_of(geo))) %>%
+      summarise(
+        total_number_of_households = sum(Observation, na.rm = TRUE),
+        eligible = sum(Observation[dep_child_category %in% c(1, 2)], na.rm = TRUE),
+        household_w_dep_kid_0_4_count = sum(Observation[dep_child_category == 1], na.rm = TRUE),
+        household_w_dep_kid_5_9_count = sum(Observation[dep_child_category == 2], na.rm = TRUE),
+        share_of_eligible = 100 * eligible / total_number_of_households,
+        household_w_dep_kid_0_4_prop = 100 * household_w_dep_kid_0_4_count / total_number_of_households,
+        household_w_dep_kid_5_9_prop = 100 * household_w_dep_kid_5_9_count / total_number_of_households,
+        .groups = "drop"  # Ensure ungrouping after summarising
+      ) %>%
+      select(all_of(geo), total_number_of_households, household_w_dep_kid_0_4_count, 
+             household_w_dep_kid_5_9_count, household_w_dep_kid_0_4_prop, 
+             household_w_dep_kid_5_9_prop, eligible, share_of_eligible)
+  } else {
+    message(paste("Skipping:", geo, "not found in dataset"))
+    return(NULL)  # Return NULL if the column does not exist
+  }
+})
 
-british_overseas_COB <- nomis_get_data(id = "NM_2024_1", time = "latest", geography = "TYPE150", C2021_COB_12 = 11, measures = 20100,
-                                 select = c("GEOGRAPHY_CODE", "OBS_VALUE")) %>%
-                                 rename("british_overseas_COB" = "OBS_VALUE", "oa21cd" = "GEOGRAPHY_CODE")
+dep_child_age_data_oa <- results[[1]]
+dep_child_age_data_lsoa <- results[[2]]
+dep_child_age_data_msoa <- results[[3]]
 
-## Ethnicity Data
+# Merge OA-level data
+leeds_census_data_2021_oa <- leeds_census_data_2021_oa %>%
+  left_join(dep_child_age_data_oa, by = "oa21cd")
+write_csv(leeds_census_data_2021_oa, "processed_data/leeds_census_data_2021_oa.csv")
 
-bangladesh_ethnicity <- nomis_get_data(id = "NM_2041_1", time = "latest", geography = "TYPE150", measures = 20100, C2021_ETH_20 = 12,
-                                select = c("GEOGRAPHY_CODE", "OBS_VALUE")) %>%
-                                rename("bangladesh_ethnicity" = "OBS_VALUE", "oa21cd" = "GEOGRAPHY_CODE")
+# Merge LSOA-level data
+leeds_census_data_2021_lsoa <- leeds_census_data_2021_lsoa %>%
+  left_join(dep_child_age_data_lsoa, by = "lsoa21cd") %>%
+  select(-oa21cd)
+write_csv(leeds_census_data_2021_lsoa, "processed_data/leeds_census_data_2021_lsoa.csv")
 
-chinese_ethnicity <- nomis_get_data(id = "NM_2041_1", time = "latest", geography = "TYPE150", measures = 20100, C2021_ETH_20 = 13,
-                                select = c("GEOGRAPHY_CODE", "OBS_VALUE")) %>%
-                                rename("chinese_ethnicity" = "OBS_VALUE", "oa21cd" = "GEOGRAPHY_CODE")
-
-indian_ethnicity <- nomis_get_data(id = "NM_2041_1", time = "latest", geography = "TYPE150", measures = 20100, C2021_ETH_20 = 11,
-                                select = c("GEOGRAPHY_CODE", "OBS_VALUE")) %>%
-                                rename("indian_ethnicity" = "OBS_VALUE", "oa21cd" = "GEOGRAPHY_CODE")
-
-pakistani_ethnicity <- nomis_get_data(id = "NM_2041_1", time = "latest", geography = "TYPE150", measures = 20100, C2021_ETH_20 = 12,
-                                select = c("GEOGRAPHY_CODE", "OBS_VALUE")) %>%
-                                rename("pakistani_ethnicity" = "OBS_VALUE", "oa21cd" = "GEOGRAPHY_CODE")
-
-asian_other_ethnicity <- nomis_get_data(id = "NM_2041_1", time = "latest", geography = "TYPE150", measures = 20100, C2021_ETH_20 = 14,
-                                select = c("GEOGRAPHY_CODE", "OBS_VALUE")) %>%
-                                rename("asian_other_ethnicity" = "OBS_VALUE", "oa21cd" = "GEOGRAPHY_CODE")
-
-african_ethnicity <- nomis_get_data(id = "NM_2041_1", time = "latest", geography = "TYPE150", measures = 20100, C2021_ETH_20 = 16,
-                                select = c("GEOGRAPHY_CODE", "OBS_VALUE")) %>%
-                                rename("african_ethnicity" = "OBS_VALUE", "oa21cd" = "GEOGRAPHY_CODE")
-
-caribbean_ethnicity <- nomis_get_data(id = "NM_2041_1", time = "latest", geography = "TYPE150", measures = 20100, C2021_ETH_20 = 15,
-                                select = c("GEOGRAPHY_CODE", "OBS_VALUE")) %>%
-                                rename("caribbean_ethnicity" = "OBS_VALUE", "oa21cd" = "GEOGRAPHY_CODE")
-
-afro_caribbean_other_ethnicity <- nomis_get_data(id = "NM_2041_1", time = "latest", geography = "TYPE150", measures = 20100, C2021_ETH_20 = 17,
-                                select = c("GEOGRAPHY_CODE", "OBS_VALUE")) %>%
-                                rename("afro_caribbean_other_ethnicity" = "OBS_VALUE", "oa21cd" = "GEOGRAPHY_CODE")
-
-white_english_ethnicity <- nomis_get_data(id = "NM_2041_1", time = "latest", geography = "TYPE150", measures = 20100, C2021_ETH_20 = 1,
-                                select = c("GEOGRAPHY_CODE", "OBS_VALUE")) %>%
-                                rename("white_english_ethnicity" = "OBS_VALUE", "oa21cd" = "GEOGRAPHY_CODE")
-
-white_irish_ethnicity <- nomis_get_data(id = "NM_2041_1", time = "latest", geography = "TYPE150", measures = 20100, C2021_ETH_20 = 2,
-                                select = c("GEOGRAPHY_CODE", "OBS_VALUE")) %>%
-                                rename("white_irish_ethnicity" = "OBS_VALUE", "oa21cd" = "GEOGRAPHY_CODE")
-
-white_gypsy_irish_traveller_ethnicity <- nomis_get_data(id = "NM_2041_1", time = "latest", geography = "TYPE150", measures = 20100, C2021_ETH_20 = 3,
-                                select = c("GEOGRAPHY_CODE", "OBS_VALUE")) %>%
-                                rename("white_gypsy_irish_traveller_ethnicity" = "OBS_VALUE", "oa21cd" = "GEOGRAPHY_CODE")
-
-white_roma_ethnicity <- nomis_get_data(id = "NM_2041_1", time = "latest", geography = "TYPE150", measures = 20100, C2021_ETH_20 = 4,
-                                select = c("GEOGRAPHY_CODE", "OBS_VALUE")) %>%
-                                rename("white_roma_ethnicity" = "OBS_VALUE", "oa21cd" = "GEOGRAPHY_CODE")
-
-white_other_ethnicity <- nomis_get_data(id = "NM_2041_1", time = "latest", geography = "TYPE150", measures = 20100, C2021_ETH_20 = 5,
-                                select = c("GEOGRAPHY_CODE", "OBS_VALUE")) %>%
-                                rename("white_other_ethnicity" = "OBS_VALUE", "oa21cd" = "GEOGRAPHY_CODE")
-
-arab_ethnicity <- nomis_get_data(id = "NM_2041_1", time = "latest", geography = "TYPE150", measures = 20100, C2021_ETH_20 = 18,
-                                select = c("GEOGRAPHY_CODE", "OBS_VALUE")) %>%
-                                rename("arab_ethnicity" = "OBS_VALUE", "oa21cd" = "GEOGRAPHY_CODE")
-
-any_other_ethnicity <- nomis_get_data(id = "NM_2041_1", time = "latest", geography = "TYPE150", measures = 20100, C2021_ETH_20 = 19,
-                                select = c("GEOGRAPHY_CODE", "OBS_VALUE")) %>%
-                                rename("any_other_ethnicity" = "OBS_VALUE", "oa21cd" = "GEOGRAPHY_CODE")
-
-
-## Merge all data
-
-oa_lsoa_msoa_lookup_Dec_2021 <- read.csv("raw_data/geography_lookup_Dec_2021.csv")
-
-oa_lsoa_msoa_lookup_Dec_2021 <- oa_lsoa_msoa_lookup_Dec_2021 %>%
-                                rename(oa21cd = OA21CD)
-
-dataframes <- list(
-  oa_lsoa_msoa_lookup_Dec_2021,
-  child_count_0to4_years, uk_COB, europe_eu_countries_COB, europe_non_eu_countries_COB, 
-  africa_COB, asia_middle_east_COB, americas_carribean_COB, antarctica_oceana_COB, 
-  british_overseas_COB, bangladesh_ethnicity, chinese_ethnicity, indian_ethnicity, 
-  pakistani_ethnicity, asian_other_ethnicity, african_ethnicity, caribbean_ethnicity, 
-  afro_caribbean_other_ethnicity, white_english_ethnicity, white_irish_ethnicity, 
-  white_gypsy_irish_traveller_ethnicity, white_roma_ethnicity, white_other_ethnicity, 
-  arab_ethnicity, any_other_ethnicity
-)
-
-
-oa21cd_data <- reduce(dataframes, left_join, by = "oa21cd")
-
-leeds_census_data_2021_oa <- oa21cd_data %>%
-  filter(LAD22CD == "E08000035")
-
-leeds_census_data_2021_oa %>%
-  write_csv("processed_data/leeds_census_data_2021_oa.csv")
+# Merge MSOA-level data
+leeds_census_data_2021_msoa <- leeds_census_data_2021_msoa %>%
+  left_join(dep_child_age_data_msoa, by = "msoa21cd") %>%
+  select(-oa21cd, -lsoa21cd)
+write_csv(leeds_census_data_2021_msoa, "processed_data/leeds_census_data_2021_msoa.csv")
