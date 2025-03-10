@@ -5,6 +5,7 @@
 ## Using this process, only 0.39% of postcodes are missing.
 
 library(dplyr)
+library(tidyr)
 library(readr)
 library(lubridate)
 library(stringr)
@@ -43,7 +44,7 @@ tax_uprn_merge <- council_tax_data %>%
   left_join(uprn_data, by = "uprn")
 
 # Remove duplicates
-tax_uprn_merge <- tax_uprn_epc_merge %>%
+tax_uprn_merge <- tax_uprn_merge %>%
   distinct(addr1, addr2, addr3, .keep_all = TRUE)
 
 # Check merge rate for CouncilTax-UPRN data
@@ -532,4 +533,4 @@ merged_data <- merged_data %>%
   select(addr1, addr2, addr3, addr4, uprn, pcds, oa21cd, lsoa21cd, 
          msoa21cd, door_number, cleaned_addr1, construction_age_band)
 
-write.csv(merged_data, "processed_data/full_address_data.csv")
+write.csv(merged_data, "processed_data/full_address_data.csv", row.names = FALSE)
