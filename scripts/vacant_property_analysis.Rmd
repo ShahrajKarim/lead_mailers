@@ -1,6 +1,8 @@
 ---
 title: "Leeds Vacant Property Analysis"
-output: html_document
+output:
+  html_document: default
+  pdf_document: default
 date: "2025-03-10"
 ---
 
@@ -17,7 +19,7 @@ library(ggplot2)
 The list of residential addresses showed that we had 376k homes, but census data showed that there were 342k households.
 This script aims to understand why there are 10% more homes than households in Leeds.
 
-We investigate vacant properties at the LSOA level and find that this accounts for 50% of the difference between households and residential properties in Leeds.
+We investigate vacant properties at the LSOA level and find that this accounts for 45% of the difference between households and residential properties in Leeds.
 
 ## Load and clean data
 
@@ -99,7 +101,7 @@ ggplot(vacant_property_data, aes(x = vacant_proportion)) +
 ## Key takeaways
 
 - There are  **`r format(total_vacant_properties, big.mark=",")`** vacant properties in Leeds.
-- This accounts for around 50% of the discrepancy between households and homes.
+- This accounts for around 45% of the discrepancy between households and homes.
 - The proportion of vacant properties varies across LSOAs, as shown in the histogram.
 
 Note: This analysis underestimates the number of vacant properties, as LSOAs with 0 to 9 vacant properties are reported as ‘c’ (concealed). Since the exact values are unknown, we assume them to be 0.
