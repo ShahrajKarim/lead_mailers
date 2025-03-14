@@ -230,12 +230,12 @@ The histogram below shows the distribution of hotels as a percentage of total pr
 
 
 ```{r plot-hotel, echo=FALSE}
-ggplot(hotel_property_data, aes(x = hotel_proportion)) +  
-    geom_histogram(binwidth = 1, fill = "red", color = "black", alpha = 0.7) +  
-    labs(title = "Distribution of Hotels in Leeds by LSOA",
-         x = "Proportion of Properties (%)",
+ggplot(hotel_property_data %>% filter(hotel_count > 0), aes(x = hotel_count)) +  
+    geom_histogram(binwidth = 100, fill = "red", color = "black", alpha = 0.7) +  
+    labs(title = "Number of Hotels & Student Accommodations in Leeds by LSOA",
+         x = "Count",
          y = "Number of LSOAs") +
-       theme_minimal()
+    theme_minimal()
 ```
 
 # Correcting the mismatch
