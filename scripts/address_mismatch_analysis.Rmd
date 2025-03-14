@@ -363,6 +363,7 @@ By purely accounting for hotels and student accommodations, the LSOA-level misma
 
 - There are **`r format(total_vacant_properties, big.mark=",")`** vacant properties in Leeds. This accounts for approximately **45%** of the discrepancy between households and homes.
 - There are **`r format(hotel_count, big.mark=",")`** hotels and student accommodations in our property data. This accounts for approximately **10%** of the discrepancy between households and homes.
-- These two factors alone account for **55%** of the mismatch between households and properties in Leeds.
+- These two factors alone account for **55%** of the difference between households and properties in Leeds.
+>>>>>>> 2cd1128 (Explored mismatch purely from unconventional residential addersses.)
 - Adjusting for factors listed in this document resulted in the LSOA level mismatch dropping by approximately **30%** from **`r format(mean_mismatch_old, big.mark=",")`** to **`r format(mean_mismatch_new, big.mark=",")`**.
 - By only adjusting for unconventional residential properties, the LSOA level mismatch dropped by approximately **10%** from **`r format(mean_mismatch_old, big.mark=",")`** to **`r format(mean_hotel_mismatch_new, big.mark=",")`**. 

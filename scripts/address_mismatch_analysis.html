@@ -529,17 +529,18 @@ selected if they don’t have a door number:</p>
 inn_data %&gt;%
   slice_sample(n = 10) %&gt;%
   select(addr1, addr2)</code></pre>
-<pre><code>##                                  addr1              addr2
-## 1                        BANKHOUSE INN  40 BANKHOUSE LANE
-## 2                         PRIMROSE INN  280 MEANWOOD ROAD
-## 3                        GEORGE IV INN 59 COMMERCIAL ROAD
-## 4                              NEW INN      68 OTLEY ROAD
-## 5                       WELLINGTON INN      WETHERBY ROAD
-## 6                      WHITE HORSE INN    HOUGH SIDE ROAD
-## 7  HOLIDAY INN EXPRESS LEEDS ARMOURIES    ARMOURIES DRIVE
-## 8                        BAY HORSE INN     66 TOWN STREET
-## 9                              NEW INN      CHURCH STREET
-## 10                         SKYRACK INN  ST MICHAEL&#39;S ROAD</code></pre>
+<pre><code>##               addr1            addr2
+## 1       PREMIER INN       SELBY ROAD
+## 2        REGENT INN 17 REGENT STREET
+## 3           NEW INN   33 TOWN STREET
+## 4     NAGS HEAD INN STONEBRIDGE LANE
+## 5           NEW INN    ALBERT SQUARE
+## 6      OLD TREE INN      HIGH STREET
+## 7           NEW INN    CHURCH STREET
+## 8  THE OLD STAR INN      MAIN STREET
+## 9     THE MARSH INN     70 UPPERMOOR
+## 10         SHIP INN         BRIGGATE</code></pre>
+>>>>>>> 2cd1128 (Explored mismatch purely from unconventional residential addersses.)
 <pre class="r"><code># Reinsert Inn data to hotel data
 hotel_data &lt;- bind_rows(hotel_data, inn_data)
 
@@ -736,7 +737,7 @@ in our property data. This accounts for approximately
 <strong>10%</strong> of the discrepancy between households and
 homes.</li>
 <li>These two factors alone account for <strong>55%</strong> of the
-mismatch between households and properties in Leeds.</li>
+difference between households and properties in Leeds.</li>
 <li>Adjusting for factors listed in this document resulted in the LSOA
 level mismatch dropping by approximately <strong>30%</strong> from
 <strong>10.30755</strong> to <strong>6.303467</strong>.</li>
