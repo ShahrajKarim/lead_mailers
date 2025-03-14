@@ -1,0 +1,330 @@
+---
+title: "Address Data Mismatch Analysis"
+date: "2025-03-14"
+output:
+  html_document:
+    toc: true
+    toc_depth: 1
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+library(readxl)
+library(dplyr)
+library(stringr)
+library(ggplot2)
+library(patchwork)
+```
+
+# Introduction
+
+The list of residential addresses showed that we had 376k homes, but census data revealed that there were 342k households.
+This script aims to understand why there are 10% more homes than households in Leeds by considering:
+
+1. Vacant properties in our property dataset that could explain more homes than households.
+2. Residential addresses included in the property dataset that a typical household would not reside in e.g. hotels and student accommodations
+
+# Vacant Properties
+
+## Load and clean data
+
+```{r load-data-vacant, message=FALSE}
+# Read vacant property data
+vacant_property_data <- read_excel("raw_data/numberofvacantdwellingsandsecondhomes.xlsx", 
+                                   sheet = "1c") %>%
+  rename(
+    lsoa21cd = 1,         
+    lsoa_name = 2,         
+    vacant_dwellings = 3,  
+    second_home = 4        
+  )
+
+# Filter only LSOAs in Leeds
+vacant_property_data <- vacant_property_data %>%
+  filter(str_detect(lsoa_name, "Leeds"))
+
+# Replace "c" (less than 10) with 0
+vacant_property_data <- vacant_property_data %>%
+  mutate(
+    vacant_dwellings = ifelse(vacant_dwellings == "c", 0, vacant_dwellings),
+    second_home = ifelse(second_home == "c", 0, second_home)
+  )
+
+# Calculate total vacant properties
+vacant_property_data <- vacant_property_data %>%
+  group_by(lsoa21cd, lsoa_name) %>%
+  summarise(
+    vacant_dwellings = sum(as.numeric(vacant_dwellings), na.rm = TRUE),
+    second_home = sum(as.numeric(second_home), na.rm = TRUE),
+    total_vacant = vacant_dwellings + second_home,
+    .groups = "drop"
+  )
+```
+
+## How many vacant properties are in Leeds?
+
+```{r total-vacant}
+# Calculate total number of vacant properties
+total_vacant_properties <- sum(vacant_property_data$total_vacant, na.rm = TRUE)
+print(total_vacant_properties)
+```
+
+The minimum number of vacant properties in Leeds is **`r format(total_vacant_properties, big.mark=",")`**, which explains about 50% of the discrepancy between households and homes.
+
+## Compare with total properties in Leeds
+```{r merge-property-data-vacant}
+# Read full property dataset
+property_data <- read.csv("processed_data/full_address_data.csv")
+
+# Count number of properties per LSOA
+lsoa_counts <- property_data %>%
+  count(lsoa21cd, name = "property_count")
+
+# Merge property count with vacant property data
+vacant_property_data <- vacant_property_data %>%
+  left_join(lsoa_counts, by = "lsoa21cd")
+
+# Compute proportion of vacant properties per LSOA
+vacant_property_data <- vacant_property_data %>%
+  mutate(vacant_proportion = 100 * total_vacant / property_count)
+```
+
+## Distribution of vacant properties
+
+The histogram below shows the distribution of vacant properties as a percentage of total properties across different LSOAs in Leeds.
+
+
+```{r plot-vacancy, echo=FALSE}
+ggplot(vacant_property_data, aes(x = vacant_proportion)) +  
+  geom_histogram(binwidth = 1, fill = "blue", color = "black", alpha = 0.7) +  
+  labs(title = "Distribution of Vacant Properties in Leeds by LSOA",
+       x = "Proportion of Properties Vacant (%)",
+       y = "Number of LSOAs") +
+  theme_minimal()
+```
+
+Note: This analysis underestimates the number of vacant properties, as LSOAs with 0 to 9 vacant properties are reported as ‘c’ (concealed). Since the exact values are unknown, we assume them to be 0.
+
+# Unconvential residential addresses
+
+## Load and Clean data
+```{r load-data-business, message=FALSE}
+# Read full property dataset
+property_data <- read.csv("processed_data/full_address_data.csv") %>%
+  mutate(addr1 = ifelse(addr2 == "1 RUTLAND MOUNT", addr2, addr1)) %>%
+  mutate(addr1 = ifelse(addr2 == "15 WOODHOUSE SQUARE", addr2, addr1)) %>%
+  mutate(addr1 = ifelse(addr2 == "93 PORTLAND CRESCENT", addr2, addr1))
+```
+
+## Create a list of hotels and student accommodations to search for:
+```{r hotels-dictionary, message=FALSE}
+hotel_keywords <- c(
+  "HOTEL",
+  "HOSTEL",
+  "IBIS",
+  "TRAVELODGE",
+  "PREMIER INN",
+  "HOLIDAY INN",
+  "MERCURE",
+  "NOVOTEL",
+  "EASYHOTEL",
+  "ROOMZZZ",
+  "RAMADA",
+  "B&B",
+  "B & B",
+  "THE DAYS INN",
+  "GUEST",
+  "RUSSELL SCOTT BACKPACKERS",
+  "OASIS RESIDENCE",
+  "THE PLAZA",
+  "BRIGGATE STUDIOS",
+  "SKY PLAZA",
+  "SYMONS HOUSE",
+  "WOODHOUSE FLATS",
+  "AUSTIN HALL",
+  "THE FOUNDRY",
+  "OXLEY HALL",
+  "1 RUTLAND MOUNT",
+  "15 WOODHOUSE SQUARE",
+  "PORTLAND CRESCENT",
+  "THE TANNERY",
+  "THE TERRY FROST BUILDING",
+  "CONCEPT PLACE",
+  "THE REFINERY",
+  "HEPWORTH LODGE",
+  "THE PRIORY",
+  "WHITE ROSE VIEW",
+  "BROADCASTING TOWER",
+  "CITYSIDE",
+  "HORTON HOUSE",
+  "ARENA VILLAGE"
+)
+
+# Compile hotel data
+hotel_data <- property_data %>%
+  filter(str_detect(str_to_upper(addr1), str_c(hotel_keywords, collapse = "|")))
+
+```
+
+## Special Case of inns
+It's difficult to select inns within the property dataset - some street names may just have the term "Inn" and these are residential addreses. To deal with this, properties with the term "Inn" are only selected if they don't have a door number:
+
+```{r inn_data}
+inn_data <- property_data %>%
+  filter(str_detect(str_to_upper(addr1), "\\bINN\\b") & is.na(door_number))
+
+inn_data %>%
+  slice_sample(n = 10) %>%
+  select(addr1, addr2)
+
+# Reinsert Inn data to hotel data
+hotel_data <- bind_rows(hotel_data, inn_data)
+
+# Remove duplicates
+hotel_data <- hotel_data %>%
+  distinct()
+```
+
+## Aggregate hotel data at LSOA level
+```{r lsoa-aggregate}
+# Count number of hotels and student accommoadtions per LSOA
+hotel_counts <- hotel_data %>%
+  count(lsoa21cd, name = "hotel_count")
+
+# Count number of properties per LSOA
+lsoa_counts <- property_data %>%
+  count(lsoa21cd, name = "property_count")
+
+# Merge hotel counts with property data
+hotel_property_data <- lsoa_counts %>%
+  left_join(hotel_counts, by = "lsoa21cd")
+
+# Replace NA columns with 0
+hotel_property_data <- hotel_property_data %>%
+  mutate(hotel_count = ifelse(is.na(hotel_count), 0, hotel_count))
+
+# Compute proportion of hotels and student accommodations per LSOA
+hotel_property_data <- hotel_property_data %>%
+  mutate(hotel_proportion = 100 * hotel_count / property_count)
+```
+
+## How many hotels and student accommodations are in Leeds?
+
+```{r total-hotels}
+# Calculate total number of vacant properties (hotels)
+hotel_count <- sum(hotel_counts$hotel_count, na.rm = TRUE)
+print(hotel_count)
+
+# Calculate total number of properties
+total_properties <- nrow(property_data)
+print(total_properties)
+
+# Proportion of hotels in property data
+prop_hotels <- (hotel_count / total_properties) * 100
+```
+
+Within our address data, there are a total of **`r format(hotel_count, big.mark=",")`** hotels and student accommodations in Leeds. This takes up **`r format(prop_hotels, big.mark=",")`** percent of properties in Leeds.
+
+## Distribution of hotels
+The histogram below shows the distribution of hotels as a percentage of total properties across different LSOAs in Leeds.
+
+
+```{r plot-hotel, echo=FALSE}
+ggplot(hotel_property_data, aes(x = hotel_proportion)) +  
+    geom_histogram(binwidth = 1, fill = "red", color = "black", alpha = 0.7) +  
+    labs(title = "Distribution of Hotels in Leeds by LSOA",
+         x = "Proportion of Properties (%)",
+         y = "Number of LSOAs") +
+       theme_minimal()
+```
+
+# Correcting the mismatch
+Now we observe how the mismatch in address and household has changed after adjusting for hotels and vacant properties.
+
+## Load and clean data
+```{r lsoa-corrected-counts}
+household_count <- read.csv("processed_data/leeds_census_data_2021_lsoa.csv") %>%
+  select(lsoa21cd, total_number_of_households)
+
+# Merge with hotel and vacant property data
+household_count <- household_count %>%
+  left_join(hotel_property_data, by = "lsoa21cd") %>%
+  left_join(vacant_property_data, by = "lsoa21cd") %>%
+  mutate(
+    property_count = coalesce(property_count.x, property_count.y),
+    mismatched_addr = hotel_count + total_vacant,
+    remaining_addr = property_count - mismatched_addr
+  ) %>%
+  select(lsoa21cd, property_count, total_number_of_households, mismatched_addr, remaining_addr)
+
+```
+
+## Proportion of addresses remaining
+
+```{r remaining-addr-plots}
+household_count <- household_count %>%
+mutate(prop_remaining = 100 * remaining_addr / property_count)
+
+mean_prop_remaining <- mean(household_count$prop_remaining, na.rm = TRUE)
+
+ggplot(household_count, aes(x = prop_remaining)) +  
+    geom_histogram(binwidth = 1, fill = "purple", color = "black", alpha = 0.7) +  
+    geom_vline(aes(xintercept = mean_prop_remaining), 
+               color = "red", linetype = "dashed") +  
+    labs(title = "Distribution of Remaining Addresses by LSOA",
+         x = "Proportion of Properties Remaining",
+         y = "Number of LSOAs") +
+    theme_minimal()
+```
+
+On average **`r format(mean_prop_remaining, big.mark=",")`** percent of properties are kept after removing vacant properties and hotels.
+
+## Distribution of address mismatch
+The address mismatch at the LSOA level is defined as:
+
+$$
+mismatch = 100 \times \left( \frac{addresses}{households} - 1 \right)
+$$
+
+A positive mismatch consequently means that there are more addresses than households, and negative negative mismatch would occur when there are more households than addresses.
+
+```{r mis-match-plots, warning = FALSE}
+household_count <- household_count %>%
+  mutate(mismatch_old = 100 * ((property_count / total_number_of_households) -1)) %>%
+  mutate(mismatch_new = 100 * ((remaining_addr / total_number_of_households) -1))
+
+mean_mismatch_old <- mean(abs(household_count$mismatch_old))
+mean_mismatch_new <- mean(abs(household_count$mismatch_new))
+
+# Old Mismatch Plot with Vertical Line and X-axis Limits
+mismatch_old_plot <- ggplot(household_count, aes(x = mismatch_old)) +  
+    geom_histogram(binwidth = 10, fill = "green3", color = "black", alpha = 0.7) +  
+    geom_vline(aes(xintercept = mean_mismatch_old), color = "red", linetype = "dashed") +  
+    scale_x_continuous(limits = c(-100, 100)) +  # Set X-axis range from 0 to 100
+    labs(title = "Old Mismatch Distribution by LSOA",
+         x = "Mismatch Level",
+         y = "Number of LSOAs") +
+    theme_minimal()
+
+# New Mismatch Plot with Vertical Line and X-axis Limits
+mismatch_new_plot <- ggplot(household_count, aes(x = mismatch_new)) +  
+    geom_histogram(binwidth = 10, fill = "green3", color = "black", alpha = 0.7) +  
+    geom_vline(aes(xintercept = mean_mismatch_new), color = "red", linetype = "dashed") +  
+    scale_x_continuous(limits = c(-100, 100)) +  # Set X-axis range from 0 to 100
+    labs(title = "New Mismatch Distribution by LSOA",
+         x = "Mismatch Level",
+         y = "Number of LSOAs") +
+    theme_minimal()
+
+# Arrange side by side
+mismatch_old_plot + mismatch_new_plot
+```
+
+By adjusting for vacant properties mean LSOA-mismatch level was previously at **`r format(mean_mismatch_old, big.mark=",")`** and it has now fallen to **`r format(mean_mismatch_new, big.mark=",")`**, effectively it has reduced by **39%**.
+
+# Key takeaways
+
+- There are **`r format(total_vacant_properties, big.mark=",")`** vacant properties in Leeds. This accounts for approximately **45%** of the discrepancy between households and homes.
+- There are **`r format(hotel_count, big.mark=",")`** hotels and student accommodations in our property data. This accounts for approximately **10%** of the discrepancy between households and homes.
+- These two factors alone account for **55%** of the mismatch between households and properties in Leeds.
+- Adjusting for factors listed in this document resulted in the LSOA level mismatch dropping by approximately **30%** from **`r format(mean_mismatch_old, big.mark=",")`** to **`r format(mean_mismatch_new, big.mark=",")`**.
