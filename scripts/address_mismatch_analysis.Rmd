@@ -22,7 +22,7 @@ The list of residential addresses showed that we had 376k homes, but census data
 This script aims to understand why there are 10% more homes than households in Leeds by considering:
 
 1. Vacant properties in our property dataset that could explain more homes than households.
-2. Residential addresses included in the property dataset that a typical household would not reside in e.g. hotels and student accommodations
+2. Residential addresses included in the property dataset that a typical household would not reside in e.g. hotels and student accommodations/
 
 # Vacant Properties
 
@@ -167,7 +167,7 @@ hotel_data <- property_data %>%
 ```
 
 ## Special Case of inns
-It's difficult to select inns within the property dataset - some street names may just have the term "Inn" and these are residential addreses. To deal with this, properties with the term "Inn" are only selected if they don't have a door number:
+It's difficult to select inns within the property dataset - some street names may have the term "Inn" even if they are residential addresses. To deal with this, properties with the term "Inn" are only selected if they don't have a door number:
 
 ```{r inn_data}
 inn_data <- property_data %>%
@@ -255,7 +255,7 @@ household_count <- household_count %>%
     mismatched_addr = hotel_count + total_vacant,
     remaining_addr = property_count - mismatched_addr
   ) %>%
-  select(lsoa21cd, property_count, total_number_of_households, mismatched_addr, remaining_addr)
+  select(lsoa21cd, property_count, hotel_count, total_vacant, total_number_of_households, mismatched_addr, remaining_addr)
 
 ```
 
@@ -279,7 +279,7 @@ ggplot(household_count, aes(x = prop_remaining)) +
 
 On average **`r format(mean_prop_remaining, big.mark=",")`** percent of properties are kept after removing vacant properties and hotels.
 
-## Distribution of address mismatch
+## Distribution of address mismatch by adjusting for vacant properties and hotels
 The address mismatch at the LSOA level is defined as:
 
 $$
@@ -300,7 +300,7 @@ mean_mismatch_new <- mean(abs(household_count$mismatch_new))
 mismatch_old_plot <- ggplot(household_count, aes(x = mismatch_old)) +  
     geom_histogram(binwidth = 10, fill = "green3", color = "black", alpha = 0.7) +  
     geom_vline(aes(xintercept = mean_mismatch_old), color = "red", linetype = "dashed") +  
-    scale_x_continuous(limits = c(-100, 100)) +  # Set X-axis range from 0 to 100
+    scale_x_continuous(limits = c(-25, 100)) +  # Set X-axis range from 0 to 100
     labs(title = "Old Mismatch Distribution by LSOA",
          x = "Mismatch Level",
          y = "Number of LSOAs") +
@@ -310,7 +310,7 @@ mismatch_old_plot <- ggplot(household_count, aes(x = mismatch_old)) +
 mismatch_new_plot <- ggplot(household_count, aes(x = mismatch_new)) +  
     geom_histogram(binwidth = 10, fill = "green3", color = "black", alpha = 0.7) +  
     geom_vline(aes(xintercept = mean_mismatch_new), color = "red", linetype = "dashed") +  
-    scale_x_continuous(limits = c(-100, 100)) +  # Set X-axis range from 0 to 100
+    scale_x_continuous(limits = c(-25, 100)) +  # Set X-axis range from 0 to 100
     labs(title = "New Mismatch Distribution by LSOA",
          x = "Mismatch Level",
          y = "Number of LSOAs") +
@@ -322,9 +322,47 @@ mismatch_old_plot + mismatch_new_plot
 
 By adjusting for vacant properties mean LSOA-mismatch level was previously at **`r format(mean_mismatch_old, big.mark=",")`** and it has now fallen to **`r format(mean_mismatch_new, big.mark=",")`**, effectively it has reduced by **39%**.
 
+## Distribution of address mismatch by only adjusting for hotels and student accommodations
+
+We do not have data on which specific properties are vacant in an LSOA - we only have data on the number of vacant properties. Given this, it is important to also consider the reduction in address mismatch purely from unconventional residential addresses:
+
+```{r hotel-mis-match-plots, warning = FALSE}
+household_count <- household_count %>%
+  mutate(remaining_addr_hotel = property_count - hotel_count) %>%
+  mutate(hotel_mismatch_new = 100 * ((remaining_addr_hotel / total_number_of_households) -1))
+
+mean_hotel_mismatch_new <- mean(abs(household_count$hotel_mismatch_new))
+
+# Old Mismatch Plot with Vertical Line and X-axis Limits
+hotel_mismatch_old_plot <- ggplot(household_count, aes(x = mismatch_old)) +  
+    geom_histogram(binwidth = 10, fill = "green3", color = "black", alpha = 0.7) +  
+    geom_vline(aes(xintercept = mean_mismatch_old), color = "red", linetype = "dashed") +  
+    scale_x_continuous(limits = c(-25, 100)) +  # Set X-axis range from 0 to 100
+    labs(title = "Old Mismatch Distribution by LSOA",
+         x = "Mismatch Level",
+         y = "Number of LSOAs") +
+    theme_minimal()
+
+# New Mismatch Plot with Vertical Line and X-axis Limits
+hotel_mismatch_new_plot <- ggplot(household_count, aes(x = hotel_mismatch_new)) +  
+    geom_histogram(binwidth = 10, fill = "green3", color = "black", alpha = 0.7) +  
+    geom_vline(aes(xintercept = mean_hotel_mismatch_new), color = "red", linetype = "dashed") +  
+    scale_x_continuous(limits = c(-25, 100)) +  # Set X-axis range from 0 to 100
+    labs(title = "New Mismatch Distribution by LSOA",
+         x = "Mismatch Level",
+         y = "Number of LSOAs") +
+    theme_minimal()
+
+# Arrange side by side
+hotel_mismatch_old_plot + hotel_mismatch_new_plot
+```
+
+By purely accounting for hotels and student accommodations, the LSOA-level mismatch has fallen from **`r format(mean_mismatch_old, big.mark=",")`** to **`r format(mean_hotel_mismatch_new, big.mark=",")`**. This has reduced the mismatch by **10%**.
+
 # Key takeaways
 
 - There are **`r format(total_vacant_properties, big.mark=",")`** vacant properties in Leeds. This accounts for approximately **45%** of the discrepancy between households and homes.
 - There are **`r format(hotel_count, big.mark=",")`** hotels and student accommodations in our property data. This accounts for approximately **10%** of the discrepancy between households and homes.
 - These two factors alone account for **55%** of the mismatch between households and properties in Leeds.
 - Adjusting for factors listed in this document resulted in the LSOA level mismatch dropping by approximately **30%** from **`r format(mean_mismatch_old, big.mark=",")`** to **`r format(mean_mismatch_new, big.mark=",")`**.
+- By only adjusting for unconventional residential properties, the LSOA level mismatch dropped by approximately **10%** from **`r format(mean_mismatch_old, big.mark=",")`** to **`r format(mean_hotel_mismatch_new, big.mark=",")`**. 
