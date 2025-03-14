@@ -68,7 +68,7 @@ tax_uprn_merge <- tax_uprn_merge %>%
 
 # Merge EPC data with council_tax-UPRN dataset
 tax_uprn_epc_merge <- tax_uprn_merge %>%
-  full_join(epc_data, by = "uprn", relationship = "many-to-many")
+  left_join(epc_data, by = "uprn", relationship = "many-to-many")
 
 # Remove duplicates based on addr1, addr2, addr3
 tax_uprn_epc_merge <- tax_uprn_epc_merge %>%
@@ -432,7 +432,8 @@ tax_uprn_epc_merge_clean <- tax_uprn_epc_merge %>%
     
     # Remove numbers again
     cleaned_addr1 = str_remove(cleaned_addr1, "^[0-9]+[ ,]*")
-  )
+  ) 
+
 
 # Select relevant columns
 
@@ -440,64 +441,62 @@ tax_uprn_epc_merge_clean <- tax_uprn_epc_merge_clean %>%
   select(addr1, addr2, addr3, addr4, uprn, pcds, oa21cd, lsoa21cd, msoa21cd, 
          door_number, cleaned_addr1, address1, address2, address3, construction_age_band)
 
+# Take addresses which have NA for cleaned_addr1 and door_number
+na_addresses <- tax_uprn_epc_merge_clean %>%
+  filter(is.na(cleaned_addr1) & is.na(door_number))
+
 # Merge the cleaned datasets together using door number and cleaned_addr1
 
 merged_data <- tax_uprn_epc_merge_clean %>%
-  full_join(epc_data_clean, by = c("door_number", "cleaned_addr1"), relationship = "many-to-many")
+  left_join(
+    epc_data_clean,
+    by = c("door_number", "cleaned_addr1"),
+    relationship = "many-to-many"
+  ) %>%
+  filter(!(is.na(door_number) & is.na(cleaned_addr1) & is.na(door_number) & is.na(cleaned_addr1)))
+
+merged_data <- bind_rows(merged_data, na_addresses)
+
+# Fill in more missing postcodes using street names after merge
+
+merged_data <- merged_data %>%
+  mutate(cleaned_addr1 = ifelse(
+    !is.na(addr2) & str_trim(addr2) != "", 
+    str_to_upper(str_replace(addr2, "^[-0-9]+[ ,]*", "")),  # Remove leading -/digits & spaces
+    str_to_upper(cleaned_addr1)  # Ensure cleaned_addr1 is uppercase
+  ))
+
+merged_data <- merged_data %>%
+  group_by(cleaned_addr1) %>%
+  mutate(
+    pcds = ifelse(is.na(pcds) | str_trim(pcds) == "", first(na.omit(pcds)), pcds),
+    oa21cd = ifelse(is.na(oa21cd), first(na.omit(oa21cd)), oa21cd),
+    lsoa21cd = ifelse(is.na(lsoa21cd), first(na.omit(lsoa21cd)), lsoa21cd),
+    msoa21cd = ifelse(is.na(msoa21cd), first(na.omit(msoa21cd)), msoa21cd)
+  ) %>%
+  ungroup()
+
+merged_data <- merged_data %>%
+  mutate(cleaned_addr1 = ifelse(
+    !is.na(addr3) & str_trim(addr3) != "", 
+    str_to_upper(str_replace(addr3, "^[-0-9]+[ ,]*", "")),  # Remove leading -/digits & spaces
+    str_to_upper(cleaned_addr1)  # Ensure cleaned_addr1 is uppercase
+  ))
+
+merged_data <- merged_data %>%
+  group_by(cleaned_addr1) %>%
+  mutate(
+    pcds = ifelse(is.na(pcds) | str_trim(pcds) == "", first(na.omit(pcds)), pcds),
+    oa21cd = ifelse(is.na(oa21cd), first(na.omit(oa21cd)), oa21cd),
+    lsoa21cd = ifelse(is.na(lsoa21cd), first(na.omit(lsoa21cd)), lsoa21cd),
+    msoa21cd = ifelse(is.na(msoa21cd), first(na.omit(msoa21cd)), msoa21cd)
+  ) %>%
+  ungroup()
+
+# Keep unique addresses
 
 merged_data <- merged_data %>%
   distinct(addr1, addr2, .keep_all = TRUE)
-
-merged_data <- merged_data %>%
-  distinct(addr1, uprn, .keep_all = TRUE)
-
-merged_data <- merged_data %>%
-  distinct(address1.y, address2.y, uprn, .keep_all = TRUE)
-
-merged_data <- merged_data %>%
-  distinct(address1.x, address2.x, uprn, .keep_all = TRUE)
-
-merged_data <- merged_data %>%
-  mutate(
-    pcds = ifelse(is.na(pcds), postcode_new, pcds),  # Replace NA pcds with postcode_new
-    construction_age_band = ifelse(is.na(construction_age_band), construction_age_band_new, construction_age_band)  # Replace NA construction_age_band with construction_age_band_new
-  )
-
-# Manually filling in postcodes
-
-merged_data <- merged_data %>%
-  mutate(
-    pcds = case_when(
-      addr1 == "1ST FLOOR FLAT" & addr2 == "100 TOWN STREET" & (is.na(pcds) | pcds == "") ~ "LS12 3HN",
-      addr1 == "270B DEWSBURY ROAD" & addr2 == "HUNSLET" & (is.na(pcds) | pcds == "") ~ "LS11 6JQ",
-      addr1 == "7A MAFEKING MOUNT" & addr2 == "BEESTON" & (is.na(pcds) | pcds == "") ~ "LS11 7BX",
-      addr1 == "1 ACACIA COURT" & addr2 == "SEACROFT" & (is.na(pcds) | pcds == "") ~ "LS14 6ZP",
-      cleaned_addr1 == "ACACIA FOLD" & (is.na(pcds) | pcds == "") ~ "LS14 6ZR",
-      cleaned_addr1 == "ACACIA GARTH" & (is.na(pcds) | pcds == "") ~ "LS14 6ZP",
-      cleaned_addr1 == "ACACIA TERRACE" & (is.na(pcds) | pcds == "") ~ "LS14 6ZQ",
-      cleaned_addr1 == "MERCER WEST" & (is.na(pcds) | pcds == "") ~ "LS2 7FA",
-      cleaned_addr1 == "MADISON EAST" & (is.na(pcds) | pcds == "") ~ "LS2 7PA",
-      cleaned_addr1 == "Q3 RESIDENCE" & (is.na(pcds) | pcds == "") ~ "LS1 2FP",
-      cleaned_addr1 == "CALVERT CRESCENT"& (is.na(pcds) | pcds == "") ~ "LS10 4WU",
-      cleaned_addr1 == "QUARRY AVENUE" & (is.na(pcds) | pcds == "") ~ "LS25 4FR",
-      cleaned_addr1 == "BLACKTHORN LANE" & (is.na(pcds) | pcds == "") ~ "LS16 6TJ",
-      cleaned_addr1 == "BLUEBELL WAY" & (is.na(pcds) | pcds == "") ~ "LS14 6WD",
-      cleaned_addr1 == "MOORLAND LANE" & (is.na(pcds) | pcds == "") ~ "BD4 0DU",
-      cleaned_addr1 == "FARMER STREET" & (is.na(pcds) | pcds == "") ~ "WF3 3SY",
-      cleaned_addr1 == "IRIS CRESCENT" & (is.na(pcds) | pcds == "") ~ "LS14 6WY",
-      cleaned_addr1 == "ELDER WAY" & (is.na(pcds) | pcds == "") ~ "LS7 2FG",
-      cleaned_addr1 == "HAZEL MOUNT" & (is.na(pcds) | pcds == "") ~ "LS25 1FF",
-      cleaned_addr1 == "HETCHELL HOUSE" & (is.na(pcds) | pcds == "") ~ "LS14 3FT",
-      cleaned_addr1 == "MILLSTONE WAY" & (is.na(pcds) | pcds == "") ~ "LS16 6FZ",
-      cleaned_addr1 == "SOUTHWAITE PLACE" & (is.na(pcds) | pcds == "") ~ "LS14 6SR",
-      cleaned_addr1 == "COLLEGE DRIVE" & (is.na(pcds) | pcds == "") ~ "LS18 4GZ",
-      cleaned_addr1 == "WILLOW CHASE" & (is.na(pcds) | pcds == "") ~ "LS7 2FS",
-      cleaned_addr1 == "WOODLAND GRANGE" & (is.na(pcds) | pcds == "") ~ "LS7 2FT",
-      cleaned_addr1 == "MOORLAND GARDENS" & (is.na(pcds) | pcds == "") ~ "LS17 6JT",
-      cleaned_addr1 == "ROSE CLOSE" & (is.na(pcds) | pcds == "") ~ "BD11 1FY",
-      TRUE ~ pcds  # Keeps existing pcds if no conditions match
-    )
-  )
 
 # Now fill in missing MSOA/LSOA/OA's:
 
@@ -507,7 +506,11 @@ merged_data <- merged_data %>%
   fill(oa21cd, lsoa21cd, msoa21cd, .direction = "downup") %>%  # Fill missing values
   ungroup()
 
-# Two more properties left which are missing the OA/LSOA/MSOA, replace these manually:
+# Some more properties left which are missing the OA/LSOA/MSOA, replace these manually:
+
+merged_data <- merged_data %>%
+  filter(!(addr1 == "SUSPENSE" & addr2 == "SUSPENSE"))
+
 # 130 Chapel House Cardigan Road:
 merged_data <- merged_data %>%
   mutate(
@@ -524,12 +527,63 @@ merged_data <- merged_data %>%
     msoa21cd = ifelse(pcds == "LS16 8FF" & (is.na(msoa21cd) | msoa21cd == ""), "E02002345", msoa21cd)
   )
 
+# Remaining postcodes which have oa21cd missing
+
 merged_data <- merged_data %>%
   mutate(
-    addr1 = coalesce(address1.x, address1.y, addr1),
-    addr2 = coalesce(address2.x, address2.y, addr2),
-    addr3 = coalesce(address3.x, address3.y, addr3)
-  ) %>%
+    # Premier Inn Clay Pit Lane
+    pcds = ifelse(addr1 == "PREMIER INN" & addr2 == "HEPWORTH POINT" & (is.na(pcds) | pcds == ""), "LS2 8BQ", pcds),
+    
+    # Hotel Ibis Budget
+    pcds = ifelse(addr1 == "HOTEL IBIS BUDGET" & addr2 == "2 THE GATEWAY NORTH" & (is.na(pcds) | pcds == ""), "LS9 8BZ", pcds),
+    
+    # Russell Scott Backpackers
+    pcds = ifelse(addr1 == "DUMMY REFERENCE" & addr2 == "RUSSELL SCOTT BACKPACKERS" & (is.na(pcds) | pcds == ""), "LS1 4LY", pcds),
+    
+    # Ramada Leeds Skelton Lake Services
+    pcds = ifelse(addr1 == "RAMADA LEEDS" & addr2 == "20 LEEDS SKELTON LAKE SERVICES" & (is.na(pcds) | pcds == ""), "LS9 0AS", pcds),
+    
+    # Caravan at Willow Cottage
+    pcds = ifelse(addr1 == "CARAVAN AT" & addr2 == "WILLOW COTTAGE" & (is.na(pcds) | pcds == ""), "LS22 5AB", pcds),
+    
+    # The Days Inn by Wyndham Hotel
+    pcds = ifelse(addr1 == "THE DAYS INN BY WYNDHAM HOTEL" & addr2 == "JUNCTION 46 A1 M" & (is.na(pcds) | pcds == ""), "LS22 5GT", pcds)
+  )
+
+merged_data <- merged_data %>%
+  mutate(
+    # Premier Inn Clay Pit Lane
+    oa21cd = ifelse(pcds == "LS2 8BQ" & (is.na(oa21cd) | oa21cd == ""), "E00187137", oa21cd),
+    lsoa21cd = ifelse(pcds == "LS2 8BQ" & (is.na(lsoa21cd) | lsoa21cd == ""), "E01033010", lsoa21cd),
+    msoa21cd = ifelse(pcds == "LS2 8BQ" & (is.na(msoa21cd) | msoa21cd == ""), "E02006875", msoa21cd),
+    
+    # Hotel Ibis Budget
+    oa21cd = ifelse(pcds == "LS9 8BZ" & (is.na(oa21cd) | oa21cd == ""), "E00170612", oa21cd),
+    lsoa21cd = ifelse(pcds == "LS9 8BZ" & (is.na(lsoa21cd) | lsoa21cd == ""), "E01033033", lsoa21cd),
+    msoa21cd = ifelse(pcds == "LS9 8BZ" & (is.na(msoa21cd) | msoa21cd == ""), "E02002404", msoa21cd),
+    
+    # Russell Scott Backpackers
+    oa21cd = ifelse(pcds == "LS1 4LY" & (is.na(oa21cd) | oa21cd == ""), "E00187074", oa21cd),
+    lsoa21cd = ifelse(pcds == "LS1 4LY" & (is.na(lsoa21cd) | lsoa21cd == ""), "E01033008", lsoa21cd),
+    msoa21cd = ifelse(pcds == "LS1 4LY" & (is.na(msoa21cd) | msoa21cd == ""), "E02006875", msoa21cd),
+    
+    # Ramada Leeds Skelton Lake Services
+    oa21cd = ifelse(pcds == "LS9 0AS" & (is.na(oa21cd) | oa21cd == ""), "E00057556", oa21cd),
+    lsoa21cd = ifelse(pcds == "LS9 0AS" & (is.na(lsoa21cd) | lsoa21cd == ""), "E01011420", lsoa21cd),
+    msoa21cd = ifelse(pcds == "LS9 0AS" & (is.na(msoa21cd) | msoa21cd == ""), "E02002398", msoa21cd),
+    
+    # Caravan at Willow Cottage
+    oa21cd = ifelse(pcds == "LS22 5AB" & (is.na(oa21cd) | oa21cd == ""), "E00058995", oa21cd),
+    lsoa21cd = ifelse(pcds == "LS22 5AB" & (is.na(lsoa21cd) | lsoa21cd == ""), "E01011696", lsoa21cd),
+    msoa21cd = ifelse(pcds == "LS22 5AB" & (is.na(msoa21cd) | msoa21cd == ""), "E02002335", msoa21cd),
+    
+    # The Days Inn by Wyndham Hotel
+    oa21cd = ifelse(pcds == "LS22 5GT" & (is.na(oa21cd) | oa21cd == ""), "E00141091", oa21cd),
+    lsoa21cd = ifelse(pcds == "LS22 5GT" & (is.na(lsoa21cd) | lsoa21cd == ""), "E01027703", lsoa21cd),
+    msoa21cd = ifelse(pcds == "LS22 5GT" & (is.na(msoa21cd) | msoa21cd == ""), "E02005776", msoa21cd)
+  )
+
+merged_data <- merged_data %>%
   select(addr1, addr2, addr3, addr4, uprn, pcds, oa21cd, lsoa21cd, 
          msoa21cd, door_number, cleaned_addr1, construction_age_band)
 
