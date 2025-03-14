@@ -509,7 +509,7 @@ merged_data <- merged_data %>%
 # Some more properties left which are missing the OA/LSOA/MSOA, replace these manually:
 
 merged_data <- merged_data %>%
-  filter(!(addr1 == "SUSPENSE" & addr2 == "SUSPENSE"))
+  filter(!(addr2 == "SUSPENSE"))
 
 # 130 Chapel House Cardigan Road:
 merged_data <- merged_data %>%
@@ -581,6 +581,12 @@ merged_data <- merged_data %>%
     oa21cd = ifelse(pcds == "LS22 5GT" & (is.na(oa21cd) | oa21cd == ""), "E00141091", oa21cd),
     lsoa21cd = ifelse(pcds == "LS22 5GT" & (is.na(lsoa21cd) | lsoa21cd == ""), "E01027703", lsoa21cd),
     msoa21cd = ifelse(pcds == "LS22 5GT" & (is.na(msoa21cd) | msoa21cd == ""), "E02005776", msoa21cd)
+  )
+
+merged_data <- merged_data %>%
+  mutate(
+    addr1 = ifelse(addr2 == "RUSSELL SCOTT BACKPACKERS", addr2, addr1),
+    addr2 = ifelse(addr2 == "RUSSELL SCOTT BACKPACKERS", addr3, addr2)  # Move addr3 to addr2
   )
 
 merged_data <- merged_data %>%
