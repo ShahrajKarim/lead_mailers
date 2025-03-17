@@ -10,6 +10,7 @@ library(readr)
 library(lubridate)
 library(stringr)
 library(googledrive)
+library(readxl)
 
 # Load council tax data, uprn data, epc data:
 
@@ -594,3 +595,90 @@ merged_data <- merged_data %>%
          msoa21cd, door_number, cleaned_addr1, construction_age_band)
 
 write.csv(merged_data, "processed_data/full_address_data.csv", row.names = FALSE)
+
+# Now tag hotels and student accommodations:
+
+property_data <- read.csv("processed_data/full_address_data.csv") %>%
+  mutate(addr1 = ifelse(addr2 == "1 RUTLAND MOUNT", addr2, addr1)) %>%
+  mutate(addr1 = ifelse(addr2 == "15 WOODHOUSE SQUARE", addr2, addr1)) %>%
+  mutate(addr1 = ifelse(addr2 == "93 PORTLAND CRESCENT", addr2, addr1))
+
+hotel_keywords <- c(
+  "HOTEL",
+  "HOSTEL",
+  "IBIS",
+  "TRAVELODGE",
+  "PREMIER INN",
+  "HOLIDAY INN",
+  "MERCURE",
+  "NOVOTEL",
+  "EASYHOTEL",
+  "ROOMZZZ",
+  "RAMADA",
+  "B&B",
+  "B & B",
+  "THE DAYS INN",
+  "GUEST",
+  "RUSSELL SCOTT BACKPACKERS",
+  "OASIS RESIDENCE",
+  "THE PLAZA",
+  "BRIGGATE STUDIOS",
+  "SKY PLAZA",
+  "SYMONS HOUSE",
+  "WOODHOUSE FLATS",
+  "AUSTIN HALL",
+  "THE FOUNDRY",
+  "OXLEY HALL",
+  "1 RUTLAND MOUNT",
+  "15 WOODHOUSE SQUARE",
+  "PORTLAND CRESCENT",
+  "THE TANNERY",
+  "THE TERRY FROST BUILDING",
+  "CONCEPT PLACE",
+  "THE REFINERY",
+  "HEPWORTH LODGE",
+  "THE PRIORY",
+  "WHITE ROSE VIEW",
+  "BROADCASTING TOWER",
+  "CITYSIDE",
+  "HORTON HOUSE",
+  "ARENA VILLAGE"
+)
+
+property_data <- property_data %>%
+  mutate(
+    tag_hotel = ifelse(
+      str_detect(str_to_upper(addr1), str_c(hotel_keywords, collapse = "|")), 
+      1, 0
+    )
+  )
+
+# Now tag vacant properties
+
+empty_properties_ltd <- read_excel("raw_data/empty_properties_ltd.xlsx", skip = 1) %>%
+  rename_with(tolower)
+
+property_data <- property_data %>%
+  mutate(tag_vacant_ltd = if_else(
+    paste(addr1, addr2, addr3) %in% paste(empty_properties_ltd$addr1, empty_properties_ltd$addr2, empty_properties_ltd$addr3),
+    1, 0
+  ))
+
+vacant_council_properties <- read.csv("raw_data/council_land_building_assets.csv") %>%
+  rename_with(tolower) %>%
+  filter(str_detect(status, "Vacant")) %>%
+  filter(str_detect(property.type, "Residential"))
+
+property_data <- property_data %>%
+  mutate(tag_vacant = ifelse(uprn %in% vacant_council_properties$uprn, 1, 0))
+
+property_data <- property_data %>%
+  mutate(tag_vacant = tag_vacant + tag_vacant_ltd) %>%
+  select(-tag_vacant_ltd) 
+
+# Tag addresses we may want to discard
+property_data <- property_data %>%
+  mutate(tag_unconventional_household = pmax(tag_vacant, tag_hotel))
+
+# Write new data set which tags the addresses with hotels and vacant properties
+write.csv(property_data, "processed_data/tagged_address_data.csv", row.names = FALSE)
