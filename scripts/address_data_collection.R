@@ -682,3 +682,12 @@ property_data <- property_data %>%
 
 # Write new data set which tags the addresses with hotels and vacant properties
 write.csv(property_data, "processed_data/tagged_address_data.csv", row.names = FALSE)
+
+# Create dataset which removes tagged addresses - these are addresses that are not of interest.
+tagged_addresses <- read.csv("processed_data/tagged_address_data.csv")
+
+residential_address_data <- tagged_addresses %>%
+  filter(tag_unconventional_household != 1) %>%
+  select(-starts_with("tag"))
+
+write.csv(residential_address_data, "processed_data/residential_address_data.csv", row.names = FALSE)
