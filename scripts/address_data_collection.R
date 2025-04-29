@@ -683,7 +683,8 @@ property_data <- property_data %>%
 # Clean up "construction_age_band" variable
 
 property_data <- property_data %>%
-  mutate(construction_age_band = na_if(construction_age_band, "NO DATA!"))
+  mutate(construction_age_band = na_if(construction_age_band, "NO DATA!")) %>%
+  mutate(construction_age_band = na_if(construction_age_band, "INVALID!"))
 
 # Write new data set which tags the addresses with hotels and vacant properties
 write.csv(property_data, "processed_data/tagged_address_data.csv", row.names = FALSE)
