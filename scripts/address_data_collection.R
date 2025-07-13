@@ -696,8 +696,9 @@ residential_address_data <- tagged_addresses %>%
   filter(tag_unconventional_household != 1) %>%
   select(-starts_with("tag"))
 
-# Clean build period data
-
-
+# Clean build period data and remove columns for uprn, door number, and cleaned_addr
+residential_address_data <- residential_address_data %>%
+  mutate(construction_age_band = str_remove(construction_age_band, "^England and Wales:\\s*")) %>%
+  select(-c(uprn, door_number, cleaned_addr1))
 
 write.csv(residential_address_data, "processed_data/residential_address_data.csv", row.names = FALSE)
