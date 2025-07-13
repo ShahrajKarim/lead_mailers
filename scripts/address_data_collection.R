@@ -696,4 +696,8 @@ residential_address_data <- tagged_addresses %>%
   filter(tag_unconventional_household != 1) %>%
   select(-starts_with("tag"))
 
+# Clean build period data
+
+
+
 write.csv(residential_address_data, "processed_data/residential_address_data.csv", row.names = FALSE)
