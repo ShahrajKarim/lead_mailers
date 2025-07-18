@@ -12,8 +12,7 @@ address_data <- read.csv("processed_data/residential_address_data.csv")
 
 # Generate unique identifiers
 
-address_data <- address_data |>
-  mutate(unique_id = sample(1e6:9.999999e6, n(), replace = FALSE))
+# address_data <- address_data |> mutate(unique_id = sample(1e6:9.999999e6, n(), replace = FALSE))
 
 address_data <- address_data |>
   slice_sample(n = 10) # sample 10 
