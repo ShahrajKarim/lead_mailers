@@ -701,8 +701,8 @@ residential_address_data <- residential_address_data %>%
   mutate(construction_age_band = str_remove(construction_age_band, "^England and Wales:\\s*")) %>%
   select(-c(uprn, door_number, cleaned_addr1))
 
-# Generate unique identifiers
+# Generate unique identifiers - this will be called "External Data Reference" so it can appear in Qualtrics
 residential_address_data <- residential_address_data |>
-  mutate(unique_id = sample(1e6:9.999999e6, n(), replace = FALSE))
+  mutate("External Data Reference" = sample(1e6:9.999999e6, n(), replace = FALSE))
 
 write.csv(residential_address_data, "processed_data/residential_address_data.csv", row.names = FALSE)
