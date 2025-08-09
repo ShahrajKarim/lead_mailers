@@ -82,6 +82,24 @@ library(stringr)
       ) |>
     select(postcode)
 
+# Obtain additional postcodes from residential address file
+  
+  residential_address_data <- read_csv("processed_data/residential_address_data.csv") |>
+    select(pcds) |>
+    rename(postcode = pcds)
+  
+# Append to mapping df and keep distinct observations
+  
+  leeds_mapping_file <- bind_rows(leeds_mapping_file, residential_address_data) %>%
+    distinct()
+  
+# Save mapping file with the mention of whether it is an LS postcode or not
+  
+  leeds_mapping_file <- leeds_mapping_file %>%
+    mutate(ls_tag = ifelse(substr(postcode, 1, 2) == "LS", 1, 0))
+  
+  write.csv(leeds_mapping_file, "processed_data/leeds_postcodes.csv", row.names = FALSE)
+  
 # Keep GP's that meet that meet either of the following criteria:
 # (i) Has a postcode that falls within the Leeds LAD
 # (ii) Has an address line that contains the string "Leeds"
