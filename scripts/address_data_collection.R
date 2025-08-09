@@ -705,4 +705,16 @@ residential_address_data <- residential_address_data %>%
 residential_address_data <- residential_address_data |>
   mutate("External Data Reference" = sample(1e6:9.999999e6, n(), replace = FALSE))
 
+# Confirm if all addresses fall within Leeds LAD (by LSOA)
+geography_lookup <- read_csv("raw_data/geography_lookup_Dec_2021.csv") %>%
+  select(LAD22CD, LSOA21CD) %>%
+  distinct(LSOA21CD, .keep_all = TRUE)
+
+residential_test <- residential_address_data %>%
+  left_join(geography_lookup, 
+            by = c("lsoa21cd" = "LSOA21CD"))
+
+all(residential_test$LAD22CD == "E08000035") # returns TRUE
+
+# Write file
 write.csv(residential_address_data, "processed_data/residential_address_data.csv", row.names = FALSE)
