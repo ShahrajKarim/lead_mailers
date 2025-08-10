@@ -44,10 +44,20 @@ library(stringr)
     "Null_27"
     )
 
-# Keep GPs which are open only active
+# Keep GPs which are open only active - hashed out for now.
   
-  gp_data <- gp_data %>%
-    filter(`Status Code` == "A")
+  #gp_data <- gp_data |>
+    #filter(`Status Code` == "A")
+
+# Replace status codes
+  
+  gp_data <- gp_data |>
+    mutate(
+      `Status Code` = ifelse(`Status Code` == "A", "Active", `Status Code`),
+           `Status Code` = ifelse(`Status Code` == "C", "Closed", `Status Code`),
+           `Status Code` = ifelse(`Status Code` == "D", "Dormant", `Status Code`),
+           `Status Code` = ifelse(`Status Code` == "P", "Proposed", `Status Code`)
+      )
   
 # Keep variables needed for contact
 
@@ -90,12 +100,12 @@ library(stringr)
   
 # Append to mapping df and keep distinct observations
   
-  leeds_mapping_file <- bind_rows(leeds_mapping_file, residential_address_data) %>%
+  leeds_mapping_file <- bind_rows(leeds_mapping_file, residential_address_data) |>
     distinct()
   
 # Save mapping file with the mention of whether it is an LS postcode or not
   
-  leeds_mapping_file <- leeds_mapping_file %>%
+  leeds_mapping_file <- leeds_mapping_file |>
     mutate(ls_tag = ifelse(substr(postcode, 1, 2) == "LS", 1, 0))
   
   write.csv(leeds_mapping_file, "processed_data/leeds_postcodes.csv", row.names = FALSE)
@@ -106,7 +116,7 @@ library(stringr)
   
   addr_cols <- c("Address Line 1","Address Line 2","Address Line 3","Address Line 4","Address Line 5")
   
-  gp_leeds <- gp_data %>%
+  gp_leeds <- gp_data |>
     filter(
       Postcode %in% leeds_mapping_file$postcode |
         if_any(all_of(addr_cols), ~ str_detect(coalesce(.x, ""), regex("\\bLeeds\\b", ignore_case = TRUE)))
