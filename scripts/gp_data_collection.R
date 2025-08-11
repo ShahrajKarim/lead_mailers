@@ -126,3 +126,11 @@ library(stringr)
   
   write.csv(gp_leeds, "processed_data/gp_script_data.csv", row.names = FALSE)
   
+# Make a list of GPs with postcodes starting with "LS" but aren't in the gp_script_data.csv file
+  
+  gp_ls_data <- gp_data |>
+    filter(str_starts(Postcode, regex("^LS")))
+  
+  gp_ls_data <- anti_join(gp_ls_data, gp_leeds, by = c("Name", "Postcode"))
+  
+  write.csv(gp_ls_data, "processed_data/additional_gps.csv", row.names = FALSE)
