@@ -1,14 +1,21 @@
-# Investigation into webscraped GP data
+# Investigation into web scraped GP data
 # This script investigates which GPs from the webscraped dataset fall within the NHS' official GP dataset
+# Note that this script is currently matching using the name and postcode combination but names could vary slightly
+# Some form of fuzzy matching with manual checking needs to be implemented to validate numbers [WIP - fuzzy matching needs to be fixed]
 
 library(readr)
 library(dplyr)
 library(tidyr)
 library(stringr)
 library(readxl)
+library(fuzzyjoin)
+library(stringdist)
+
+# Set seed
+set.seed(76695)
 
 # Import webscraped data
-webscraped_data <- read_csv("~/Downloads/master.csv") |>
+webscraped_data <- read_csv("processed_data/webscraped_gps.csv") |>
   select( - "...1") |>
   rename("Name" = "name") |>
   mutate(Name = toupper(Name))
@@ -90,43 +97,109 @@ combined_gp_script <- bind_rows(gp_script_data, additional_gps)
       )
 
 
-# Calculate statics in relation to GP script data
+# Calculate statics based on GPs in web scraped data (relative to GP script dataset)
 
-merged_list <- webscraped_data |>
+web_merge_script <- webscraped_data |>
   left_join(combined_gp_script, by = c("Name", "Postcode"))
 
-inactive_count <- merged_list |>
+inactive_count <- web_merge_script |>
   summarise(
     inactive_count = sum(!is.na(`Status Code`) & `Status Code` != "Active")
   ) # Gives 6 closed GP's 
 
-active_count <- merged_list |>
+active_count <- web_merge_script |>
   summarise(
     active_count = sum(`Status Code` == "Active", na.rm = TRUE)
   ) # 94 active GPs
 
-merge_count <- merged_list |>
+merge_count <- web_merge_script |>
   summarise(
     merge_rate = sum(!is.na(`Address Line 1`))
   ) # 100
 
-# Calculate statics in relation to full GP data
+# Calculate statics based on GPs in webscraped data (relative to Full GP dataset)
 
-merged_full <- webscraped_data |>
+web_merge_full <- webscraped_data |>
   left_join(gp_full_data, by = c("Name", "Postcode"))
 
-inactive_count_full <- merged_full |>
+inactive_count_full <- web_merge_full |>
   summarise(
     inactive_count = sum(!is.na(`Status Code`) & `Status Code` != "Active")
-  ) # Gives 13 closed GP's 
+  ) # Gives 13 closed GP's [only 1 of these is permanently closed]
 
-active_count_full <- merged_full |>
+active_count_full <- web_merge_full |>
   summarise(
     active_count = sum(`Status Code` == "Active", na.rm = TRUE)
   ) # 203 active GPs
 
-merge_count_full <- merged_full |>
+merge_count_full <- web_merge_full |>
   summarise(
     merge_rate = sum(!is.na(`Address Line 1`))
   ) # 216
 
+# Calculate statics based on GPs in GP script dataset (relative to GP script dataset)
+
+script_merge_web  <- combined_gp_script |>
+  left_join(webscraped_data, by = c("Name", "Postcode"))
+
+merge_count_script <- script_merge_web |>
+  summarise(
+    merge_rate = sum(!is.na(address))
+  ) # 100
+
+inactive_count_merge <- script_merge_web |>
+  summarise(
+    inactive_count = sum(!is.na(`Status Code`) & `Status Code` != "Active" & !is.na(address))
+  ) # Gives 6 closed GP's [only X of these are permanently closed]
+
+inactive_count_not_merge <- script_merge_web |>
+  summarise(
+    inactive_count = sum(!is.na(`Status Code`) & `Status Code` != "Active" & is.na(address))
+  ) # 86 closed GP's
+
+active_count_not_merge <- script_merge_web |>
+  summarise(
+    active_count = sum(`Status Code` == "Active" & is.na(address))
+  ) # 87 active GPs
+
+
+######### Now repeat this exercise using fuzzy matching [WIP] #########
+
+# Webscraped data relative to GPs to full GP list
+
+web_full_fuzzy <- fuzzy_left_join(
+  webscraped_data,
+  gp_full_data,
+  by = c("Name" = "Name", "Postcode" = "Postcode"),
+  match_fun = list(
+    `==`,
+    function(a, b) stringdist(a, b, method = "cosine") <= 0.2
+  )) |>
+  mutate(cosine_dist = stringdist(Name.x, Name.y, method = "cosine"),
+         cosine_sim  = 1 - cosine_dist)
+
+# Webscraped data relative to GPs to GP script data
+
+web_script_fuzzy <- fuzzy_left_join(
+  webscraped_data,
+  gp_script_data,
+  by = c("Name" = "Name", "Postcode" = "Postcode"),
+  match_fun = list(
+    `==`,
+    function(a, b) stringdist(a, b, method = "cosine") <= 0.2
+  )) |>
+  mutate(cosine_dist = stringdist(Name.x, Name.y, method = "cosine"),
+         cosine_sim  = 1 - cosine_dist)
+
+# Script data relative to webscraped data
+
+script_web_fuzzy <- fuzzy_left_join(
+  gp_script_data,
+  webscraped_data,
+  by = c("Name" = "Name", "Postcode" = "Postcode"),
+  match_fun = list(
+    `==`,
+    function(a, b) stringdist(a, b, method = "cosine") <= 0.2
+  )) |>
+  mutate(cosine_dist = stringdist(Name.x, Name.y, method = "cosine"),
+         cosine_sim  = 1 - cosine_dist)
