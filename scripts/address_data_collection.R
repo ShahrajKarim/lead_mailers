@@ -686,6 +686,43 @@ property_data <- property_data %>%
   mutate(construction_age_band = na_if(construction_age_band, "NO DATA!")) %>%
   mutate(construction_age_band = na_if(construction_age_band, "INVALID!"))
 
+# Create a variable for beginning and end of age band
+
+clean_epc_age <- function(data){
+  
+  data |>
+    # Remove the prefix if present
+    mutate(band = str_remove(construction_age_band, "England and Wales: ")) |>
+    mutate(
+      epc_age_start = case_when(
+        # Range: extract start (first 4-digit number)
+        str_detect(band, "^[0-9]{4}-[0-9]{4}") ~ as.numeric(str_extract(band, "^[0-9]{4}")),
+        # "before": no start provided
+        str_detect(band, "before") ~ NA_real_,
+        # "onwards": extract starting year
+        str_detect(band, "onwards") ~ as.numeric(str_extract(band, "^[0-9]{4}")),
+        # Single 4-digit year
+        str_detect(band, "^[0-9]{4}$") ~ as.numeric(band),
+        # Otherwise (e.g. "NO DATA!" or "INVALID!") 
+        TRUE ~ NA_real_
+      ),
+      epc_age_end = case_when(
+        # Range: extract end (second 4-digit number)
+        str_detect(band, "^[0-9]{4}-[0-9]{4}") ~ as.numeric(str_extract(band, "(?<=-)[0-9]{4}")),
+        # "before": extract the year after "before"
+        str_detect(band, "before") ~ as.numeric(str_extract(band, "[0-9]{4}")),
+        # "onwards": no end provided
+        str_detect(band, "onwards") ~ NA_real_,
+        # Single 4-digit year
+        str_detect(band, "^[0-9]{4}$") ~ as.numeric(band),
+        # Otherwise
+        TRUE ~ NA_real_
+      )
+    )
+}
+
+property_data <- clean_epc_age(property_data)
+
 # Write new data set which tags the addresses with hotels and vacant properties
 write.csv(property_data, "processed_data/tagged_address_data.csv", row.names = FALSE)
 
