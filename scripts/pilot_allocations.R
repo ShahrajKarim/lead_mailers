@@ -86,5 +86,5 @@ sampled_addresses %>%
 print(paste("Target letters:", n_letters, "\n"))
 print(paste("Actually allocated:", sum(!is.na(sampled_addresses$treatment)), "\n"))
 
-# Save resulting dataset - too large 
+# Save resulting dataset
 write.csv(sampled_addresses, "processed_data/pilot_sampled_addresses.csv", row.names = FALSE)
