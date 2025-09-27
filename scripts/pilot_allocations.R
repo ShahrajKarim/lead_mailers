@@ -86,5 +86,17 @@ sampled_addresses %>%
 print(paste("Target letters:", n_letters, "\n"))
 print(paste("Actually allocated:", sum(!is.na(sampled_addresses$treatment)), "\n"))
 
+# Generate mailer id and remove variables to decrease file size
+
+sampled_addresses <- sampled_addresses %>%
+  mutate(
+    `External Data Reference` = if_else(
+      !is.na(treatment),
+      sample(1e6:9.999999e6, n(), replace = FALSE),
+      NA_integer_
+    )
+  ) %>%
+  select(- house_age_old, house_age_unknown)
+
 # Save resulting dataset
 write.csv(sampled_addresses, "processed_data/pilot_sampled_addresses.csv", row.names = FALSE)
