@@ -48,7 +48,7 @@ for (i in 1:nrow(control)) {
     body_replace_all_text("<<addr1>>", person$addr1, only_at_cursor = FALSE) %>%
     body_replace_all_text("<<addr2>>", person$addr2, only_at_cursor = FALSE) %>%
     body_replace_all_text("<<addr3>>", person$addr3, only_at_cursor = FALSE) %>%
-    body_replace_all_text("<<addr4>>", ifelse(is.na(person$addr4[[1]]), "", paste0(sample$addr4[[1]], " ")), only_at_cursor = FALSE) %>%
+    body_replace_all_text("<<addr4>>", ifelse(is.na(person$addr4[[1]]), "", paste0(person$addr4[[1]], " ")), only_at_cursor = FALSE) %>%
     body_replace_all_text("<<DATE>>", date, only_at_cursor = FALSE)
   
   # Replace <<qr>> with image
@@ -76,7 +76,7 @@ for (i in 1:nrow(treat_1)) {
     body_replace_all_text("<<addr1>>", person$addr1, only_at_cursor = FALSE) %>%
     body_replace_all_text("<<addr2>>", person$addr2, only_at_cursor = FALSE) %>%
     body_replace_all_text("<<addr3>>", person$addr3, only_at_cursor = FALSE) %>%
-    body_replace_all_text("<<addr4>>", ifelse(is.na(person$addr4[[1]]), "", paste0(sample$addr4[[1]], " ")), only_at_cursor = FALSE) %>%
+    body_replace_all_text("<<addr4>>", ifelse(is.na(person$addr4[[1]]), "", paste0(person$addr4[[1]], " ")), only_at_cursor = FALSE) %>%
     body_replace_all_text("<<DATE>>", date, only_at_cursor = FALSE)
   
   # Replace <<qr>> with image
@@ -104,7 +104,7 @@ for (i in 1:nrow(treat_2)) {
     body_replace_all_text("<<addr1>>", person$addr1, only_at_cursor = FALSE) %>%
     body_replace_all_text("<<addr2>>", person$addr2, only_at_cursor = FALSE) %>%
     body_replace_all_text("<<addr3>>", person$addr3, only_at_cursor = FALSE) %>%
-    body_replace_all_text("<<addr4>>", ifelse(is.na(person$addr4[[1]]), "", paste0(sample$addr4[[1]], " ")), only_at_cursor = FALSE) %>%
+    body_replace_all_text("<<addr4>>", ifelse(is.na(person$addr4[[1]]), "", paste0(person$addr4[[1]], " ")), only_at_cursor = FALSE) %>%
     body_replace_all_text("<<DATE>>", date, only_at_cursor = FALSE)
   
   # Replace <<qr>> with image
