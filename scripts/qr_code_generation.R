@@ -1,5 +1,6 @@
 ## This script aims to generate personalised QR codes for use in Qualtrics
-# For the purpose of this exercise I am using a sample of 10 addresses to test if this works and to prevent using data
+# The user must insert the file directory of qualtrics_link_file prior to running the code.
+# The user must also change the file directory which they want to use to save the png images of qr_codes.
 
 # To measure time
 start <- Sys.time()
@@ -14,19 +15,21 @@ library(png)
 address_data <- read.csv("processed_data/pilot_sampled_addresses.csv")
 
 # Change this to the actual file directory
-# qualtrics_link_file <- "qr_codes/export-EMD_MydSxeKIFKwQtbX-2025-09-27T16-56-12-124Z.csv"
+qualtrics_link_file <- "qr_codes/export-EMD_MydSxeKIFKwQtbX-2025-09-27T16-56-12-124Z.csv"
 
 # Load in links for QR codes
 
 urls <- read_csv(qualtrics_link_file) |>
+  select("External Data Reference", "Link") |>
   right_join(address_data, by = c("External Data Reference" = "External.Data.Reference"))
 
 # QR code name
 
+# QR code file directory & file name - please change to relevant file directory when running script. 
+qr_dir <- "qr_codes/qr_"
+
 urls <- urls %>%
   mutate(qr_path = paste0("qr_codes/qr_", `External Data Reference`, ".png"))
-
-# urls <- urls[1:1000, ]
 
 # Generate the QR codes
 
@@ -38,11 +41,10 @@ walk2(urls$Link, urls$qr_path, function(link, path) {
 })
 
 # csv file for 
-write.csv(urls, "processed_data/test_links_250825.csv", row.names = FALSE)
+write.csv(urls, "processed_data/qr_code_data.csv", row.names = FALSE)
 
 # To measure time
 end <- Sys.time()
 print(end - start)
 
-# write.csv(address_data, "processed_data/sample_residential_addresses.csv") # Save this sample for future reproducibility when trialing
 
